@@ -1,0 +1,11 @@
+Story behind "Your Guardian Angel" - The Red Jumpsuit Apparatus. The Red Jumpsuit Apparatus dedicated this song to the 8 teenagers who were killed by an E4 tornado in Enterprise, Alabama on March 1, 2007. A boy saved his girlfriend by throwing his body over hers.He was killed by the tornado, and she's alive today. He did it because he loved her and wanted for her to live. "I will never let you fall, I'll stand up with you forever.I'll be there for you through it all, even if saving you sends me to heaven." Thus, he's her guardian angel.Enterprise High School was destroyed by this tornado. ctto.
+
+Simple Plan's 'I Can Wait Forever' is a poignant ballad that delves into the emotional turmoil of being separated from a loved one.  The song is a raw encapsulation of longing, love, and the resilience one finds in the face of separation. 
+
+
+foundation assurance
+ judistrical action 
+verbal, written, 
+
+php artisan make:controller RequestApprovalController
+

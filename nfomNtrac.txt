@@ -1,0 +1,198 @@
+import React, { useState, useEffect } from 'react';
+import axiosClient from "@/lib/axios-client";
+import * as XLSX from 'xlsx';
+import { useStateContext } from "@/context/ContextProvider";
+import { ScrollArea } from "../ui/scroll-area";
+import {
+    AlertDialogCancel,
+    AlertDialogAction,
+} from "../ui/alert-dialog";
+import { Checkbox } from '../ui/checkbox';
+
+import {
+    FormLabel,
+} from "@/components/ui/form";
+
+// Convert seconds to HH:mm:ss format
+const convertSecsToDigital = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const ExportRequestApprovalManager = ({ onClose }) => {
+    const [managerId, setManagerId] = useState('');
+    const [date, setDate] = useState('');
+    const [workbook, setWorkbook] = useState(null);
+    const [worksheet, setWorksheet] = useState(null);
+    const [employees, setEmployees] = useState([]);
+    const [selectedEmployees, setSelectedEmployees] = useState([]);
+    const [selectAll, setSelectAll] = useState(false);
+
+    const { currentTeam } = useStateContext();
+
+    useEffect(() => {
+        if (currentTeam) {
+            setManagerId(currentTeam);
+        }
+    }, [currentTeam]);
+
+    useEffect(() => {
+        // Initialize workbook and worksheet when the component mounts
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([["UserID Name", "ManagerID", "Description", "Status", "Notes", "Start Time", "End Time", "Date", "Created At", "Updated At", "Duration"]]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Request Approval');
+        setWorkbook(wb);
+        setWorksheet(ws);
+
+        // Fetch employees
+        axiosClient.get(`/employees/team/${currentTeam}`)
+            .then(({ data }) => {
+                setEmployees(data.data || []); // Ensure data is an array
+            })
+            .catch((err) => console.log(err));
+    }, [currentTeam]);
+
+    useEffect(() => {
+        if (selectAll) {
+            setSelectedEmployees(employees.map(employee => employee.id));
+        } else {
+            setSelectedEmployees([]);
+        }
+    }, [selectAll, employees]);
+
+    const exportToExcel = async () => {
+        console.log('Button clicked, starting export process...');
+        console.log('Using parameters:', { managerid: managerId, date: date, userids: selectedEmployees });
+
+        try {
+            // Fetch data from the backend
+            const response = await axiosClient.get('/viewRequestApprovalWManager', {
+                params: {
+                    managerid: managerId,
+                    date: date,
+                    userids: selectedEmployees.length > 0 ? selectedEmployees : [-1] // Handle empty array case
+                }
+            });
+
+            let data = response.data.data;
+            console.log('Fetched data:', data);  // Log the fetched data
+
+            if (!data || data.length === 0) {
+                console.warn('No data returned from API');
+                return;
+            }
+
+            // Filter out data for non-selected user IDs
+            if (selectedEmployees.length > 0) {
+                data = data.filter(item => selectedEmployees.includes(item.userid));
+            }
+            console.log('Filtered data:', data);  // Log the filtered data
+
+            // Format data for Excel
+            const formattedData = data.map(item => {
+                return [
+                    item.user_name,
+                    item.managerid,
+                    item.description,
+                    item.status,
+                    item.notes,
+                    item.start_time,
+                    item.end_time,
+                    item.date,
+                    item.created_at,
+                    item.updated_at,
+                    convertSecsToDigital(item.duration)  // Convert duration to HH:mm:ss format
+                ];
+            });
+
+            console.log('Formatted data for Excel:', formattedData);  // Log the formatted data
+
+            // Append formatted data to worksheet
+            XLSX.utils.sheet_add_aoa(worksheet, formattedData, { origin: -1 });
+
+            // Update the state with the new worksheet
+            setWorksheet(worksheet);
+
+            // Generate Excel file
+            XLSX.writeFile(workbook, `request_approval.xlsx`);
+            console.log('Excel file generated successfully');
+        } catch (error) {
+            console.error('Error exporting data: ', error);
+        }
+    };
+
+    const handleEmployeeChange = (id) => {
+        setSelectedEmployees(prevState =>
+            prevState.includes(id)
+                ? prevState.filter(empId => empId !== id)
+                : [...prevState, id]
+        );
+    };
+
+    const handleCancel = () => {
+        onClose();
+    };
+
+    return (
+        <div>
+            <div className="mb-4">
+                <FormLabel className="text-base font-semibold">
+                    {/* Manager ID: {managerId} */}
+                </FormLabel>
+            </div>
+            <div className="mb-4">
+                <FormLabel className="text-base font-semibold">
+                    {/* Date: */}
+                </FormLabel>
+                <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="border p-2 rounded w-[300px] justify-start text-left font-normal"
+                />
+            </div>
+            <ScrollArea className="max-h-[300px]">
+                <div className="mb-2">
+                    <FormLabel className="text-base font-semibold">
+                        Employees
+                    </FormLabel>
+                </div>
+                <div className="flex flex-row items-start space-x-3 space-y-0 mb-2">
+                    <Checkbox
+                        checked={selectedEmployees.length === employees.length}
+                        onCheckedChange={(checked) => {
+                            setSelectedEmployees(checked ? employees.map(employee => employee.id) : []);
+                            setSelectAll(checked);
+                        }}
+                    />
+                    <span className="font-normal">
+                        {selectedEmployees.length === employees.length ? "Unselect All" : "Select All"}
+                    </span>
+                </div>
+                {employees.map(employee => (
+                    <div key={employee.id} className="flex items-center">
+                        <Checkbox
+                            style={{ marginRight: '10px' }}
+                            value={employee.id}
+                            checked={selectedEmployees.includes(employee.id)}
+                            onCheckedChange={() => handleEmployeeChange(employee.id)}
+                        />
+                        <span>{employee.first_name} {employee.last_name}</span>
+                    </div>
+                ))}
+            </ScrollArea>
+            <div className="flex justify-end mt-4 gap-4">
+                <AlertDialogCancel onClick={handleCancel}>
+                    Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={exportToExcel}>
+                    Generate
+                </AlertDialogAction>
+            </div>
+        </div>
+    );
+};
+
+export default ExportRequestApprovalManager;

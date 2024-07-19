@@ -1,0 +1,166 @@
+import React, { useState, useEffect } from 'react';
+import axiosClient from "@/lib/axios-client";
+import * as XLSX from 'xlsx';
+import { useStateContext } from "@/context/ContextProvider";
+
+// Convert seconds to HH:mm:ss format
+const convertSecsToDigital = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const ExportRequestApprovalManager = () => {
+    const [managerId, setManagerId] = useState('');
+    const [date, setDate] = useState('');
+    const [workbook, setWorkbook] = useState(null);
+    const [worksheet, setWorksheet] = useState(null);
+    const [employees, setEmployees] = useState([]);
+    const [selectedEmployees, setSelectedEmployees] = useState([]);
+    const [selectAll, setSelectAll] = useState(false);
+
+    const { currentTeam } = useStateContext();
+
+    useEffect(() => {
+        // Initialize workbook and worksheet when the component mounts
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([["UserID Name", "ManagerID", "Description", "Status", "Notes", "Start Time", "End Time", "Date", "Created At", "Updated At", "Duration"]]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Request Approval');
+        setWorkbook(wb);
+        setWorksheet(ws);
+
+        // Fetch employees
+        axiosClient.get(`/employees/team/${currentTeam}`)
+            .then(({ data }) => {
+                setEmployees(data.data || []); // Ensure data is an array
+            })
+            .catch((err) => console.log(err));
+    }, [currentTeam]);
+
+    useEffect(() => {
+        if (selectAll) {
+            setSelectedEmployees(employees.map(employee => employee.id));
+        } else {
+            setSelectedEmployees([]);
+        }
+    }, [selectAll, employees]);
+
+    const exportToExcel = async () => {
+        console.log('Button clicked, starting export process...');
+        console.log('Using parameters:', { managerid: managerId, date: date, userids: selectedEmployees });
+
+        try {
+            // Fetch data from the backend
+            const response = await axiosClient.get('/viewRequestApprovalWManager', {
+                params: {
+                    managerid: managerId,
+                    date: date,
+                    userids: selectedEmployees.length > 0 ? selectedEmployees : [-1] // Handle empty array case
+                }
+            });
+
+            let data = response.data.data;
+            console.log('Fetched data:', data);  // Log the fetched data
+
+            if (!data || data.length === 0) {
+                console.warn('No data returned from API');
+                return;
+            }
+
+            // Filter out data for non-selected user IDs
+            if (selectedEmployees.length > 0) {
+                data = data.filter(item => selectedEmployees.includes(item.userid));
+            }
+            console.log('Filtered data:', data);  // Log the filtered data
+
+            // Format data for Excel
+            const formattedData = data.map(item => {
+                return [
+                    item.user_name,
+                    item.managerid,
+                    item.description,
+                    item.status,
+                    item.notes,
+                    item.start_time,
+                    item.end_time,
+                    item.date,
+                    item.created_at,
+                    item.updated_at,
+                    convertSecsToDigital(item.duration)  // Convert duration to HH:mm:ss format
+                ];
+            });
+
+            console.log('Formatted data for Excel:', formattedData);  // Log the formatted data
+
+            // Append formatted data to worksheet
+            XLSX.utils.sheet_add_aoa(worksheet, formattedData, { origin: -1 });
+
+            // Update the state with the new worksheet
+            setWorksheet(worksheet);
+
+            // Generate Excel file
+            XLSX.writeFile(workbook, `request_approval.xlsx`);
+            console.log('Excel file generated successfully');
+        } catch (error) {
+            console.error('Error exporting data: ', error);
+        }
+    };
+
+    const handleEmployeeChange = (id) => {
+        setSelectedEmployees(prevState =>
+            prevState.includes(id)
+                ? prevState.filter(empId => empId !== id)
+                : [...prevState, id]
+        );
+    };
+
+    return (
+        <div>
+            <div>
+
+                <label>
+                    Manager ID:
+                    <input type="text" value={managerId} onChange={(e) => setManagerId(e.target.value)} />
+                </label>
+            </div>
+            <div>
+                <label>
+                    Date:
+                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </label>
+            </div>
+            <div>
+                <label>Employees:</label>
+                <div>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={selectAll}
+                            onChange={() => setSelectAll(!selectAll)}
+                        />
+                        Select All
+                    </label>
+                    {employees.map(employee => (
+                        <div key={employee.id}>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    value={employee.id}
+                                    checked={selectedEmployees.includes(employee.id)}
+                                    onChange={() => handleEmployeeChange(employee.id)}
+                                />
+                                {employee.first_name} {employee.last_name}
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <button onClick={exportToExcel}>
+                Export Request Approval
+            </button>
+        </div>
+    );
+};
+
+export default ExportRequestApprovalManager;

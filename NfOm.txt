@@ -1,0 +1,149 @@
+import React, { useState, useEffect } from 'react';
+import axiosClient from "@/lib/axios-client";
+import * as XLSX from 'xlsx';
+
+import { useStateContext } from "@/context/ContextProvider";
+
+// Convert seconds to HH:mm:ss format
+const convertSecsToDigital = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
+const ExportRequestApproval = () => {
+    const [userId, setUserId] = useState('');
+    const [date, setDate] = useState('');
+    const [workbook, setWorkbook] = useState(null);
+    const [worksheet, setWorksheet] = useState(null);
+    const [employees, setEmployees] = useState([]);
+    const [selectedEmployees, setSelectedEmployees] = useState([]);
+
+    const { currentTeam } = useStateContext();
+
+    useEffect(() => {
+        // Initialize workbook and worksheet when the component mounts
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([["UserID Name", "ManagerID", "Description", "Status", "Notes", "Start Time", "End Time", "Date", "Created At", "Updated At", "Duration"]]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Request Approval');
+        setWorkbook(wb);
+        setWorksheet(ws);
+
+        // Fetch employees
+        axiosClient.get(`/employees/team/${currentTeam}`)
+            .then(({ data }) => {
+                setEmployees(data.data);
+            })
+            .catch((err) => console.log(err));
+    }, [currentTeam]);
+
+    const exportToExcel = async () => {
+        console.log('Button clicked, starting export process...');
+        console.log('Using parameters:', { userid: userId, date: date });
+
+        try {
+            // Fetch data from the backend
+            const response = await axiosClient.get('/viewRequestApproval', {
+                params: { userid: userId, date: date }
+            });
+
+            const data = response.data.data;
+            console.log('Fetched data:', data);  // Log the fetched data
+
+            if (!data || data.length === 0) {
+                console.warn('No data returned from API');
+                return;
+            }
+
+            // Convert duration to HH:mm:ss format and format data for Excel
+            const formattedData = data.map(item => {
+                const employee = employees.find(emp => emp.id === item.userid);
+                return [
+                    employee ? `${employee.first_name} ${employee.last_name}` : item.userid,
+                    item.managerid,
+                    item.description,
+                    item.status,
+                    item.notes,
+                    item.start_time,
+                    item.end_time,
+                    item.date,
+                    item.created_at,
+                    item.updated_at,
+                    convertSecsToDigital(item.duration)  // Convert duration to HH:mm:ss format
+                ];
+            });
+
+            console.log('Formatted data for Excel:', formattedData);  // Log the formatted data
+
+            // Append formatted data to worksheet
+            XLSX.utils.sheet_add_aoa(worksheet, formattedData, { origin: -1 });
+
+            // Update the state with the new worksheet
+            setWorksheet(worksheet);
+
+            // Generate Excel file
+            XLSX.writeFile(workbook, `request_approval.xlsx`);
+            console.log('Excel file generated successfully');
+        } catch (error) {
+            console.error('Error exporting data: ', error);
+        }
+    };
+
+    const handleEmployeeChange = (id) => {
+        setSelectedEmployees(prevState =>
+            prevState.includes(id)
+                ? prevState.filter(empId => empId !== id)
+                : [...prevState, id]
+        );
+
+        // Update the userId field to reflect the first selected employee
+        if (!userId || selectedEmployees.includes(id)) {
+            const newSelectedEmployees = selectedEmployees.includes(id)
+                ? selectedEmployees.filter(empId => empId !== id)
+                : [...selectedEmployees, id];
+
+            setUserId(newSelectedEmployees[0] || '');
+        }
+    };
+
+    return (
+        <div>
+            <div>
+                <label>
+                    User ID:
+                    <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} />
+                </label>
+            </div>
+            <div>
+                <label>
+                    Date:
+                    <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </label>
+            </div>
+            <div>
+                <label>Employees:</label>
+                <div>
+                    {employees.map(employee => (
+                        <div key={employee.id}>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    value={employee.id}
+                                    checked={selectedEmployees.includes(employee.id)}
+                                    onChange={() => handleEmployeeChange(employee.id)}
+                                />
+                                {employee.first_name} {employee.last_name}
+                            </label>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <button onClick={exportToExcel}>
+                Export Request Approval to Excel
+            </button>
+        </div>
+    );
+};
+
+export default ExportRequestApproval;
