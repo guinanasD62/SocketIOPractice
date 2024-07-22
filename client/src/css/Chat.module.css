@@ -12,6 +12,26 @@
     box-shadow: 0 4px 8px rgba(74, 7, 94, 0.479);
 }
 
+.userList {
+    width: 400px;
+    height: 100%;
+}
+
+.chatSection {
+    display: flex;
+    flex: auto;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    margin: auto;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 16px;
+    background-color: #f9f9f9;
+    margin-top: 2rem;
+    box-shadow: 0 4px 8px rgba(74, 7, 94, 0.479);
+}
+
 .chatHead {
     display: flex;
     justify-content: space-between;
@@ -66,4 +86,28 @@ input {
     border-radius: 4px;
     margin-top: 16px;
     width: auto;
+}
+
+.messages {
+    float: 0 0 100%;
+    display: flex;
+    flex-direction: column;
+    height: 50vh;
+}
+
+.messages .message {
+    display: flex;
+    flex-direction: column;
+    width: 90%;
+    background-color: antiquewhite;
+    margin: 5px 0;
+    padding: 5px;
+    border-radius: 5px;
+    align-items: flex-start;
+}
+
+.messages .message.self {
+    background-color: antiquewhite;
+    color: white;
+    align-items: flex-end;
 }

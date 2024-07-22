@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import queryString from 'query-string';
 import io from 'socket.io-client';
-import styles from "./../css/Chat.module.css"
+import styles from "./../css/Chat.module.css";
+import ScrollToButtom from "react-scroll-to-bottom";
 
 let socket;
 
@@ -29,6 +30,7 @@ const Chat = () => {
 
         return () => {
             socket.disconnect();
+            socket.close();
         };
     }, [name, room]);
 
@@ -40,25 +42,39 @@ const Chat = () => {
     };
 
     return (
-        <div className={styles.chat}>
+        <><div className={styles.chat}>
             <div className={styles.chatHead}>
                 <div className={styles.room}> Room: {room} </div>
                 <Link to="/"> x </Link>
 
             </div>
-            <div className={styles.chatBox}>
-                <div className={styles.message}> Text Message</div>
-                {messages.map((message, index) => (
-                    <div key={index} className={`message ${name === message.user ? "self" : ""}`}>
-                        <span>{message.user}</span>:{" "}
 
-                        <span>{message.text}</span>
+            <div className={styles.chatSection}>
+                <div className={styles.chatBox}>
+                    <div className={styles.userList}>
+                        <div>User Name</div>
+                    </div>
+                    <ScrollToButtom>
+                        <div className={styles.messages}>
+                            {messages.map((message, index) => (
+                                <div
+                                    key={index}
+                                    className={`message ${name === message.user ? "self" : ""}`}
+                                >
+                                    <span className={styles.user}>{message.user}</span>:{" "}
 
-                    </div>))}
+                                    <span className={styles.messageText}>{message.text}</span>
+
+                                </div>))}
+                        </div>
+
+                    </ScrollToButtom>
+                    <input placeholder='message' onKeyDown={sendMessage} />
+
+                </div >
             </div>
-            <input placeholder='message' onKeyDown={sendMessage} />
-
-        </div>
+        </div >
+        </>
     );
 };
 
